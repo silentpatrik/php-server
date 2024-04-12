@@ -1,11 +1,34 @@
 import process from 'node:process';
+import { execSync } from 'child_process';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
 import http from 'node:http';
 import open from 'open';
 import binaryVersionCheck from 'binary-version-check';
 import getPort from 'get-port';
+import { execSync } from 'child_process';
+import path from 'path';
 
+
+function setNumberOfCPUs() {
+  try {
+    const cpus = execSync(`
+      if command -v nproc >/dev/null 2>&1; then
+        echo $(nproc)
+      elif command -v sysctl >/dev/null 2>&1; then
+        echo $(sysctl -n hw.ncpu)
+      elif [ -f /proc/cpuinfo ]; then
+        echo $(grep -c processor /proc/cpuinfo)
+      else
+        echo 1  // Default to 1 if unable to determine
+      fi
+    `).toString().trim();
+    return cpus;
+  } catch (error) {
+    console.info(`Failed to get number of cpus, defauting to 1. Error: ${error}`);
+	  return 1;
+  }
+}
 const isServerRunning = (hostname, port, pathname) => new Promise((resolve, reject) => {
 	const retryDelay = 50;
 	const maxRetries = 20; // Give up after 1 second
@@ -46,14 +69,16 @@ const isServerRunning = (hostname, port, pathname) => new Promise((resolve, reje
 	checkServer();
 });
 
-export default async function phpServer(options) {
+export default async function phpServer(options,env={}) {
+
 	options = {
 		port: 0,
 		hostname: '127.0.0.1',
 		base: '.',
 		open: false,
-		env: {},
+		env: env,
 		binary: 'php',
+		workers: 0. // 0 = auto, will try and resolve from os and set to 1 if that fails
 		directives: {},
 		...options,
 	};
